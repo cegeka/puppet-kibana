@@ -3,3 +3,4 @@
 {<img src='https://jenkins-iac.cegeka.be/job/puppet-kibana/badge/icon' />}[https://jenkins-iac.cegeka.be/job/puppet-kibana/]
 
 This is the kibana module.
+
