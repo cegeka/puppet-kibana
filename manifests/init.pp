@@ -1,41 +1,61 @@
-# Class: kibana
+# @summary The top-level kibana class that declares child classes for managing kibana.
 #
-# This module manages kibana
+# @example Basic installation
+#   class { 'kibana' : }
 #
-# Parameters:
+# @example Module removal
+#   class { 'kibana' : ensure => absent }
 #
-# Actions:
+# @example Installing a specific version
+#   class { 'kibana' : ensure => '5.2.1' }
 #
-# Requires:
+# @example Keep latest version of Kibana installed
+#   class { 'kibana' : ensure => 'latest' }
 #
-# Sample Usage:
+# @example Setting a configuration file value
+#   class { 'kibana' : config => { 'server.port' => 5602 } }
 #
-class kibana(
-  $version = 'present',
-  $elasticsearch_host = $::fqdn,
-  $elasticsearch_port = '9200'
+# @param ensure State of Kibana on the system (simple present/absent/latest
+#   or version number).
+# @param config Hash of key-value pairs for Kibana's configuration file
+# @param oss whether to manage OSS packages
+# @param package_source Local path to package file for file (not repo) based installation
+# @param manage_repo Whether to manage the package manager repository
+# @param status Service status
+#
+# @author Tyler Langlois <tyler.langlois@elastic.co>
+#
+class kibana (
+  Variant[Enum['present', 'absent', 'latest'], Pattern[/^\d([.]\d+)*(-[\d\w]+)?$/]] $ensure,
+  Hash[String[1], Variant[String[1], Integer, Boolean, Array, Hash]] $config,
+  Boolean $manage_repo,
+  Boolean $oss,
+  Optional[String] $package_source,
+  Kibana::Status $status,
 ) {
 
-  case $version {
-    'present', 'latest': { $version_real = $version }
-    default:             { fail('Class[kibana]: parameter version must be present or latest') }
+  contain ::kibana::install
+  contain ::kibana::config
+  contain ::kibana::service
+
+  if $manage_repo {
+    contain ::elastic_stack::repo
+
+    Class['::elastic_stack::repo']
+    -> Class['::kibana::install']
   }
 
-  case $::osfamily {
-    'RedHat': {
-      class { 'kibana::package':
-        version => $version_real
-      }
-      class { 'kibana::config':
-        elasticsearch_host => $elasticsearch_host,
-        elasticsearch_port => $elasticsearch_port
-      }
-
-      Class['kibana::package'] -> Class['kibana::config']
+  # Catch absent values, otherwise default to present/installed ordering
+  case $ensure {
+    'absent': {
+      Class['::kibana::service']
+      -> Class['::kibana::config']
+      -> Class['::kibana::install']
     }
     default: {
-      fail("Class['kibana']: osfamily ${::osfamily} is not supported")
+      Class['::kibana::install']
+      -> Class['::kibana::config']
+      ~> Class['::kibana::service']
     }
   }
-
 }
